@@ -1,4 +1,4 @@
-// routes/category.routes.js
+// routes/category.routes.jsx
 const express = require('express');
 const router = express.Router();
 const {

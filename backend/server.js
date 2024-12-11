@@ -17,11 +17,34 @@ const orderRoutes = require('./routes/order.routes');
 // Inicializar express
 const app = express();
 
+// Configuración de CORS
+const corsOptions = {
+    origin: process.env.NODE_ENV === 'production'
+        ? ['https://tudominio.com'] // Dominio de producción
+        : ['http://localhost:5173', 'http://127.0.0.1:5173'], // Dominios de desarrollo
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true,
+    maxAge: 600 // Tiempo de caché preflight en segundos
+};
+
 // Middleware
-app.use(cors());
+app.use(cors(corsOptions));
 app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Headers de seguridad adicionales
+app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE');
+    res.header('Access-Control-Expose-Headers', 'Content-Length');
+    res.header('Access-Control-Allow-Headers', 'Accept, Authorization, Content-Type, X-Requested-With, Range');
+    if (req.method === 'OPTIONS') {
+        return res.send(200);
+    }
+    next();
+});
 
 // Rutas
 app.use('/api/users', userRoutes);
