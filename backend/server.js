@@ -4,6 +4,7 @@ const cors = require('cors');
 const morgan = require('morgan');
 const mongoose = require('mongoose');
 const connectDB = require('./config/db');
+const { errorHandler } = require('./middleware/error');
 require('dotenv').config();
 
 // Importar rutas
@@ -42,22 +43,13 @@ app.use('/uploads', express.static('uploads'));
 
 // Middleware para rutas no encontradas
 app.use((req, res, next) => {
-    res.status(404).json({
-        success: false,
-        message: 'Ruta no encontrada'
-    });
+    const error = new Error('Ruta no encontrada');
+    error.statusCode = 404;
+    next(error);
 });
 
-// Middleware para manejo de errores
-app.use((err, req, res, next) => {
-    console.error(err.stack);
-    const statusCode = err.statusCode || 500;
-    res.status(statusCode).json({
-        success: false,
-        message: err.message || 'Error interno del servidor',
-        stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
-    });
-});
+// Middleware de manejo de errores personalizado
+app.use(errorHandler);
 
 // Configuración del servidor
 const PORT = process.env.PORT || 5000;

@@ -1,111 +1,183 @@
+// controllers/userController.js
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const config = require('../config/default');
+const { validateUser } = require('../utils/validation');
+const { ErrorResponse } = require('../middleware/error');
+const { sanitizeInput } = require('../utils/helpers');
 
-// Función para generar un token JWT para un usuario
+// Función para generar token JWT
 const generateToken = (userId) => {
     return jwt.sign({ id: userId }, config.jwtSecret, {
-        expiresIn: '30d' // El token será válido por 30 días
+        expiresIn: '30d'
     });
 };
 
-// Endpoint para registrar un usuario
-exports.register = async (req, res) => {
+// Registrar usuario
+exports.register = async (req, res, next) => {
     try {
-        const { name, email, password, address } = req.body; // Extraer datos del usuario del cuerpo de la solicitud
-
-        // Verificar si el usuario ya existe buscando por correo
-        const userExists = await User.findOne({ email });
-        if (userExists) {
-            return res.status(400).json({ // Retornar error si el correo ya está registrado
-                success: false,
-                message: 'El usuario ya existe'
-            });
+        // Validar datos de entrada
+        const { errors, isValid } = validateUser(req.body);
+        if (!isValid) {
+            throw new ErrorResponse('Datos de usuario inválidos', 400, errors);
         }
 
-        // Crear un nuevo usuario con los datos proporcionados
+        // Sanitizar datos de entrada
+        const sanitizedData = sanitizeInput(req.body);
+
+        // Verificar si el usuario existe
+        const userExists = await User.findOne({ email: sanitizedData.email });
+        if (userExists) {
+            throw new ErrorResponse('El usuario ya existe', 400);
+        }
+
+        // Crear usuario
         const user = await User.create({
-            name,
-            email,
-            password,
-            address
+            name: sanitizedData.name,
+            email: sanitizedData.email,
+            password: sanitizedData.password,
+            address: sanitizedData.address
         });
 
-        // Generar un token JWT para el nuevo usuario
+        // Generar token
         const token = generateToken(user._id);
 
-        // Enviar respuesta con el usuario creado y el token
         res.status(201).json({
             success: true,
             data: user,
             token
         });
     } catch (error) {
-        // Manejar errores durante el registro
-        res.status(400).json({
-            success: false,
-            message: error.message
-        });
+        next(error);
     }
 };
 
-// Endpoint para iniciar sesión
-exports.login = async (req, res) => {
+// Login de usuario
+exports.login = async (req, res, next) => {
     try {
-        const { email, password } = req.body; // Extraer correo y contraseña del cuerpo de la solicitud
+        const { email, password } = sanitizeInput(req.body);
 
-        // Verificar si el usuario existe en la base de datos
-        const user = await User.findOne({ email });
-        if (!user) {
-            return res.status(401).json({ // Retornar error si el correo no está registrado
-                success: false,
-                message: 'Credenciales inválidas'
-            });
+        // Validar campos requeridos
+        if (!email || !password) {
+            throw new ErrorResponse('Por favor proporcione email y contraseña', 400);
         }
 
-        // Verificar si la contraseña proporcionada coincide con la almacenada
+        // Buscar usuario
+        const user = await User.findOne({ email }).select('+password');
+        if (!user) {
+            throw new ErrorResponse('Credenciales inválidas', 401);
+        }
+
+        // Verificar contraseña
         const isMatch = await user.comparePassword(password);
         if (!isMatch) {
-            return res.status(401).json({ // Retornar error si las contraseñas no coinciden
-                success: false,
-                message: 'Credenciales inválidas'
-            });
+            throw new ErrorResponse('Credenciales inválidas', 401);
         }
 
-        // Generar un token JWT para el usuario autenticado
+        // Generar token
         const token = generateToken(user._id);
 
-        // Enviar respuesta con los datos del usuario y el token
-        res.json({
+        // Remover contraseña de la respuesta
+        user.password = undefined;
+
+        res.status(200).json({
             success: true,
             data: user,
             token
         });
     } catch (error) {
-        // Manejar errores durante el inicio de sesión
-        res.status(400).json({
-            success: false,
-            message: error.message
-        });
+        next(error);
     }
 };
 
-// Endpoint para obtener el perfil del usuario
-exports.getProfile = async (req, res) => {
+// Obtener perfil
+exports.getProfile = async (req, res, next) => {
     try {
-        // Obtener datos del usuario utilizando el ID del usuario autenticado
         const user = await User.findById(req.user.id);
+        if (!user) {
+            throw new ErrorResponse('Usuario no encontrado', 404);
+        }
 
-        // Enviar los datos del usuario como respuesta
-        res.json({
+        res.status(200).json({
             success: true,
             data: user
         });
     } catch (error) {
-        // Manejar errores al obtener el perfil
-        res.status(400).json({
-            success: false,
-            message: error.message
+        next(error);
+    }
+};
+
+// Actualizar perfil
+exports.updateProfile = async (req, res, next) => {
+    try {
+        const sanitizedData = sanitizeInput(req.body);
+
+        // Prevenir actualización de contraseña por esta ruta
+        if (sanitizedData.password) {
+            throw new ErrorResponse('Esta ruta no es para actualizar contraseña', 400);
+        }
+
+        // Validar datos de actualización
+        const { errors, isValid } = validateUser({
+            ...sanitizedData,
+            password: 'dummypass' // Para pasar la validación
         });
+
+        if (!isValid) {
+            throw new ErrorResponse('Datos de actualización inválidos', 400, errors);
+        }
+
+        const user = await User.findByIdAndUpdate(
+            req.user.id,
+            {
+                name: sanitizedData.name,
+                email: sanitizedData.email,
+                address: sanitizedData.address
+            },
+            {
+                new: true,
+                runValidators: true
+            }
+        );
+
+        res.status(200).json({
+            success: true,
+            data: user
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// Cambiar contraseña
+exports.changePassword = async (req, res, next) => {
+    try {
+        const { currentPassword, newPassword } = sanitizeInput(req.body);
+
+        if (!currentPassword || !newPassword) {
+            throw new ErrorResponse('Por favor proporcione la contraseña actual y la nueva', 400);
+        }
+
+        const user = await User.findById(req.user.id).select('+password');
+
+        if (!user) {
+            throw new ErrorResponse('Usuario no encontrado', 404);
+        }
+
+        // Verificar contraseña actual
+        const isMatch = await user.comparePassword(currentPassword);
+        if (!isMatch) {
+            throw new ErrorResponse('Contraseña actual incorrecta', 401);
+        }
+
+        user.password = newPassword;
+        await user.save();
+
+        res.status(200).json({
+            success: true,
+            message: 'Contraseña actualizada exitosamente'
+        });
+    } catch (error) {
+        next(error);
     }
 };

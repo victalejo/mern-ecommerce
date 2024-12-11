@@ -9,14 +9,15 @@ const {
     deleteProduct
 } = require('../controllers/productController');
 const { protect, authorize } = require('../middleware/auth');
+const isAdmin = require("../middleware/admin");
 
 // Rutas públicas
 router.get('/', getProducts);
 router.get('/:id', getProduct);
 
 // Rutas protegidas (solo administradores)
-router.post('/', protect, authorize('admin'), createProduct);
-router.put('/:id', protect, authorize('admin'), updateProduct);
-router.delete('/:id', protect, authorize('admin'), deleteProduct);
+router.post('/', protect, isAdmin, createProduct);
+router.put('/:id', protect, isAdmin, updateProduct);
+router.delete('/:id', protect, isAdmin, deleteProduct);
 
 module.exports = router;
