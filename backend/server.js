@@ -1,3 +1,4 @@
+// server.js
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -45,7 +46,7 @@ app.use((req, res, next) => {
 
 // Middleware para manejo de errores
 app.use((err, req, res, next) => {
-    console.error(err.stack); // Registrar el error en la consola
+    console.error(err.stack);
 
     // Si el error tiene un código de estado, usarlo; si no, usar 500
     const statusCode = err.statusCode || 500;
@@ -60,16 +61,17 @@ app.use((err, req, res, next) => {
 // Conexión a la base de datos
 const connectDB = async () => {
     try {
-        await mongoose.connect(process.env.MONGODB_URI); // Conexión a MongoDB usando la URI de entorno
+        await mongoose.connect(process.env.MONGODB_URI);
         console.log('MongoDB conectado exitosamente');
     } catch (error) {
-        console.error('Error al conectar a MongoDB:', error.message); // Registrar errores de conexión
-        process.exit(1); // Finalizar el proceso si no se puede conectar
+        console.error('Error al conectar a MongoDB:', error.message);
+        process.exit(1);
     }
 };
 
-// Inicializar el servidor
-const PORT = process.env.PORT || 5000; // Puerto del servidor desde variable de entorno o por defecto 5000
+// Configuración del servidor
+const PORT = process.env.PORT || 5000;
+let server; // Declarar la variable server para poder cerrarla en caso de error
 
 // Función para iniciar el servidor
 const startServer = async () => {
@@ -78,10 +80,17 @@ const startServer = async () => {
         await connectDB();
 
         // Iniciar el servidor
-        app.listen(PORT, () => {
+        server = app.listen(PORT, () => {
             console.log(`Servidor corriendo en puerto ${PORT}`);
             console.log(`Ambiente: ${process.env.NODE_ENV}`);
         });
+
+        // Manejar errores del servidor
+        server.on('error', (error) => {
+            console.error('Error en el servidor:', error);
+            process.exit(1);
+        });
+
     } catch (error) {
         console.error('Error al iniciar el servidor:', error);
         process.exit(1);
@@ -91,9 +100,39 @@ const startServer = async () => {
 // Iniciar el servidor
 startServer();
 
+// Manejo de señales de terminación
+process.on('SIGTERM', () => {
+    console.log('Señal SIGTERM recibida. Cerrando servidor...');
+    if (server) {
+        server.close(() => {
+            console.log('Servidor cerrado');
+            process.exit(0);
+        });
+    }
+});
+
 // Manejo de errores no capturados
-process.on('unhandledRejection', (err, promise) => {
+process.on('unhandledRejection', (err) => {
     console.error('Error no manejado:', err.message);
-    // Cerrar el servidor y salir del proceso
-    server.close(() => process.exit(1));
+    if (server) {
+        server.close(() => {
+            console.log('Servidor cerrado debido a un error no manejado');
+            process.exit(1);
+        });
+    } else {
+        process.exit(1);
+    }
+});
+
+// Manejo de excepciones no capturadas
+process.on('uncaughtException', (err) => {
+    console.error('Excepción no capturada:', err.message);
+    if (server) {
+        server.close(() => {
+            console.log('Servidor cerrado debido a una excepción no capturada');
+            process.exit(1);
+        });
+    } else {
+        process.exit(1);
+    }
 });
