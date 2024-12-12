@@ -35,6 +35,11 @@ const validateProduct = (data) => {
         errors.name = 'El nombre del producto debe tener al menos 3 caracteres';
     }
 
+    // Validar descripción
+    if (!data.description || data.description.trim().length < 10) {
+        errors.description = 'La descripción debe tener al menos 10 caracteres';
+    }
+
     // Validar precio
     if (!data.price || isNaN(data.price) || data.price <= 0) {
         errors.price = 'El precio debe ser un número mayor a 0';
@@ -55,6 +60,7 @@ const validateProduct = (data) => {
         isValid: Object.keys(errors).length === 0
     };
 };
+
 
 // Validaciones para orden
 const validateOrder = (data) => {

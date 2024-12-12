@@ -1,4 +1,6 @@
 // src/components/products/ProductList.jsx
+import { ProductCard } from './ProductCard';
+
 export function ProductList({ products }) {
     if (!products.length) {
         return (

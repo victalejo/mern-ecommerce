@@ -1,18 +1,53 @@
 // src/context/AuthContext.jsx
-import { createContext, useContext, useState, useCallback } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect } from 'react';
 
 const AuthContext = createContext();
 
 export function AuthProvider({ children }) {
     const [user, setUser] = useState(null);
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+
+    // Función para verificar y cargar el usuario autenticado
+    const loadUser = useCallback(async () => {
+        const token = localStorage.getItem('token');
+        if (!token) {
+            setLoading(false);
+            return;
+        }
+
+        try {
+            const response = await fetch(`${import.meta.env.VITE_API_URL}/users/profile`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error('Sesión inválida');
+            }
+
+            const data = await response.json();
+            setUser(data.data);
+        } catch (err) {
+            console.error('Error al cargar usuario:', err);
+            localStorage.removeItem('token');
+            setUser(null);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    // Cargar usuario al montar el componente
+    useEffect(() => {
+        loadUser();
+    }, [loadUser]);
 
     const login = useCallback(async (email, password) => {
         setLoading(true);
         setError(null);
         try {
-            const response = await fetch('http://localhost:5000/api/users/login', {
+            const response = await fetch(`${import.meta.env.VITE_API_URL}/users/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password })
@@ -39,7 +74,7 @@ export function AuthProvider({ children }) {
         setLoading(true);
         setError(null);
         try {
-            const response = await fetch('http://localhost:5000/api/users/register', {
+            const response = await fetch(`${import.meta.env.VITE_API_URL}/users/register`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(userData)
@@ -73,8 +108,17 @@ export function AuthProvider({ children }) {
         error,
         login,
         register,
-        logout
+        logout,
+        loadUser
     };
+
+    if (loading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
+            </div>
+        );
+    }
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

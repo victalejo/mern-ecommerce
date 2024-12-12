@@ -1,4 +1,4 @@
-// routes/product.routes.jsx
+// routes/product.routes.js
 const express = require('express');
 const router = express.Router();
 const {
@@ -6,18 +6,21 @@ const {
     getProduct,
     createProduct,
     updateProduct,
-    deleteProduct
+    deleteProduct,
+    searchProducts
 } = require('../controllers/productController');
-const { protect, authorize } = require('../middleware/auth');
+const { protect } = require('../middleware/auth');
 const isAdmin = require("../middleware/admin");
+const upload = require('../middleware/upload');
 
 // Rutas públicas
 router.get('/', getProducts);
 router.get('/:id', getProduct);
+router.get('/search', searchProducts);
 
 // Rutas protegidas (solo administradores)
-router.post('/', protect, isAdmin, createProduct);
-router.put('/:id', protect, isAdmin, updateProduct);
+router.post('/', protect, isAdmin, upload.single('image'), createProduct);
+router.put('/:id', protect, isAdmin, upload.single('image'), updateProduct);
 router.delete('/:id', protect, isAdmin, deleteProduct);
 
 module.exports = router;

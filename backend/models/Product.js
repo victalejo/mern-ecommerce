@@ -1,3 +1,4 @@
+// models/Product.js
 const mongoose = require('mongoose');
 
 const productSchema = new mongoose.Schema({
@@ -38,8 +39,7 @@ const productSchema = new mongoose.Schema({
         required: true
     }
 }, {
-    timestamps: true // Agrega automáticamente createdAt y updatedAt
+    timestamps: true
 });
 
-const Product = mongoose.model('Product', productSchema);
-module.exports = Product;
+module.exports = mongoose.model('Product', productSchema);

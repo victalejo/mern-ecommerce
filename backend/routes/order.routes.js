@@ -3,16 +3,19 @@ const router = express.Router();
 const {
     createOrder,
     getOrders,
-    getOrder
+    getOrder,
+    updateOrderStatus  // Añadir este controlador
 } = require('../controllers/orderController');
 const { protect } = require('../middleware/auth');
+const isAdmin = require('../middleware/admin');
 
-// Todas las rutas de órdenes requieren autenticación
+// Rutas existentes
 router.use(protect);
-
-// Rutas para órdenes
 router.post('/', createOrder);
 router.get('/', getOrders);
 router.get('/:id', getOrder);
+
+// Nueva ruta para actualizar el estado
+router.put('/:id/status', protect, isAdmin, updateOrderStatus);
 
 module.exports = router;
